@@ -1,0 +1,74 @@
+
+-- Customer Report
+create view base_report as 
+with base_query as (
+	select 
+	s.order_number,
+	s.product_key,
+	s.order_date,
+	s.sales_amount,
+	s.quantity,
+	f.customer_key,
+	f.customer_number,
+	Concat(f.first_name, ' ', f.last_name) as full_name,
+	datediff(year, f.birthdate, getdate()) as age
+	from gold.fact_sales s
+	join gold.dim_customers f
+	on f.customer_key = s.customer_key
+	where order_date is not null
+     ),
+	 customer_aggregation as (
+select 
+customer_key,
+customer_number,
+full_name,
+age,
+count(distinct order_number) as no_of_orders,
+count(distinct product_key) as product_keys,
+max(order_date) as last_order_date,
+datediff(month, min(order_date), max(order_date)) as lifespan,
+sum(quantity) as Total_quantities,
+sum(sales_amount) as total_sales
+from base_query
+group by 
+	customer_key,
+    customer_number,
+	full_name,
+	age
+
+	)
+select
+customer_key,
+customer_number,
+full_name,
+age,
+datediff(month, last_order_date, getdate()) as recency,
+case 
+	when age<20 then 'Under 20'
+	when age between 20 and 30 then '20-29'
+	when age between 30 and 40 then '30-39'
+	when age between 40 and 50 then '40-49'
+	else 'over 50'
+	end as age_range,
+case 
+	when total_sales=0 then 0
+	else total_sales/ no_of_orders
+end as avg_order_value,
+
+no_of_orders,
+product_keys,
+
+case 
+	when total_sales > 5000 and lifespan >=12 then 'VIP'
+	when total_sales <= 5000 and lifespan >=12 then 'Regular'
+	else 'New'
+end as customer_status,
+
+case 
+	when lifespan =0 then total_sales
+	else total_sales/lifespan 
+end as avg_monthly_spend,
+
+lifespan,
+total_sales
+from customer_aggregation
