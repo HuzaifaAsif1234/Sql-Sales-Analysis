@@ -1,0 +1,18 @@
+-- Cumulative Data Analysis
+
+
+with t as (
+select 
+-- year(order_date) as Order_year, 
+-- month(order_date) as Order_month,
+DATEFROMPARTS(YEAR(order_date), 1, 1) as orders_date,
+SUM(sales_amount) as Total_sales
+from gold.fact_sales
+where order_date is not null
+group by year(order_date)
+)
+select
+orders_date,
+Total_sales,
+SUM(Total_sales) over(partition by orders_date order by orders_date) as running_total
+from t
