@@ -1,0 +1,28 @@
+
+-- Data Segmentation
+
+
+with sales_det as(
+select c.customer_key as customer_num,
+sum(f.sales_amount) as total_spending,
+min(f.order_date) as first_order,
+max(f.order_date) as last_order,
+datediff(month, min(f.order_date), max(f.order_date)) as lifespan
+from gold.fact_sales f
+join gold.dim_customers c 
+on f.customer_key = c.customer_key
+group by c.customer_key)
+
+select customer_status, count(customer_num ) as Total_customers
+from 
+    (
+	select customer_num, total_spending, lifespan,
+	case 
+		when total_spending > 5000 and lifespan >=12 then 'VIP'
+		when total_spending <= 5000 and lifespan >=12 then 'Regular'
+		else 'New'
+	end customer_status
+	from sales_det
+     ) t
+group by customer_status
+order by Total_customers desc
