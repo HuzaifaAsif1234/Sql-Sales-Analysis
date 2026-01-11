@@ -1,0 +1,42 @@
+
+-- performance analysis
+with yearly_product_sales as (
+select
+year(s.order_date) as order_year,
+p.product_name,
+sum(s.sales_amount) as total_sales
+from gold.fact_sales s
+join gold.dim_products p 
+on s.product_key = p.product_key
+where order_date is not null
+group by year(s.order_date), p.product_name
+)
+select order_year, 
+product_name, 
+total_sales,
+avg(total_sales) over(partition by product_name) as avg_sales,
+total_sales - avg(total_sales) over(partition by product_name) as diff_avg,
+case when total_sales - avg(total_sales) over(partition by product_name) >0 then 'Increase'
+     when total_sales - avg(total_sales) over(partition by product_name) < 0 then 'Decrease'
+	 else 'No Progress'
+end avg_change,
+lag(total_sales) over(partition by product_name order by order_year) as py_sales,
+total_sales - lag(total_sales) over(partition by product_name order by order_year) as diff_py,
+case when total_sales - lag(total_sales) over(partition by product_name order by order_year)>0 then 'Good'
+  when total_sales - lag(total_sales) over(partition by product_name order by order_year) <0 then 'Bad'
+  else 'No Progress'
+end py_change
+
+from yearly_product_sales
+order by product_name, order_year;
+
+with all_ct_sales as (
+select f.category, sum(s.sales_amount) as total_sales
+from gold.fact_sales s
+join gold.dim_products f on s.product_key = f.product_key
+group by (f.category)
+)
+select category, total_sales, sum(total_sales) over() overall_sales,
+concat(round((cast(total_sales as float)/ sum(total_sales) over())*100,2),'%') as perc_total
+from all_ct_sales
+order by perc_total desc
